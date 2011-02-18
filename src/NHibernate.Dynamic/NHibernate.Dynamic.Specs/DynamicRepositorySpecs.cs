@@ -164,10 +164,28 @@ namespace NHibernate.Dynamic.Specs
         }
 
         [Test]
-        public void GetAllWithCollectionName1AndCollectionName2_loads_both_collections() {}
+        public void GetWithCollectionName1AndCollectionName2_loads_both_collections()
+        {
+            Person actualPerson = _repository.GetWithFavoriteBooksAndFavoriteMovies(_person1.Id);
+
+            Assert.IsNotNull(actualPerson);
+            Assert.AreEqual(_person1.Id, actualPerson.Id);
+            Assert.IsTrue(NHibernateUtil.IsInitialized(actualPerson.FavoriteBooks));
+            Assert.IsTrue(NHibernateUtil.IsInitialized(actualPerson.FavoriteMovies));
+        }
 
         [Test]
-        public void GetWithManyToOnePropertynameAndCollectionName_loads_both_relationships() {}
+        public void GetWithManyToOnePropertynameAndCollectionName_loads_both_relationships()
+        {
+            IList<Person> actualPersons = _repository.GetWithFavoriteBooksAndFavoriteMovies();
+
+            var firstPerson = actualPersons.FirstOrDefault();
+
+            Assert.AreEqual(3, actualPersons.Count);
+            Assert.AreEqual(_person1.Id, firstPerson.Id);
+            Assert.IsTrue(NHibernateUtil.IsInitialized(firstPerson.FavoriteBooks));
+            Assert.IsTrue(NHibernateUtil.IsInitialized(firstPerson.BFF));
+        }
 
         [Test]
         public void GetByPropertyName_filters_on_given_property()

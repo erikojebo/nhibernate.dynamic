@@ -2,7 +2,6 @@
 using System.Dynamic;
 using System.Linq;
 using NHibernate.Criterion;
-using NHibernate.Transform;
 
 namespace NHibernate.Dynamic
 {
@@ -37,21 +36,14 @@ namespace NHibernate.Dynamic
             _query = new Query(binder.Name);
             _criteria = _session.CreateCriteria<T>();
 
-            AddFilters(args);
-            AddIdRestriction(args);
-            FetchRelatives();
+            AddFilters(_criteria);
+            AddIdRestriction(_criteria);
 
             result = GetResult();
 
-            return true;
-        }
+            FetchRelatives();
 
-        private void AddIdRestriction(object[] args)
-        {
-            if (IsQueryById)
-            {
-                _criteria.Add(Restrictions.Eq("Id", args[0]));
-            }
+            return true;
         }
 
         private bool IsQueryById
@@ -61,10 +53,15 @@ namespace NHibernate.Dynamic
 
         private void FetchRelatives()
         {
-            if (_query.FetchProperties.Any())
+            foreach (var fetchProperty in _query.FetchProperties)
             {
-                _criteria.SetFetchMode(_query.FetchProperties.First(), FetchMode.Join);
-                _criteria.SetResultTransformer(Transformers.DistinctRootEntity);
+                var fetchCriteria = _session.CreateCriteria<T>()
+                    .SetFetchMode(fetchProperty, FetchMode.Join);
+
+                AddFilters(_criteria);
+                AddIdRestriction(_criteria);
+
+                fetchCriteria.List<T>();
             }
         }
 
@@ -78,11 +75,19 @@ namespace NHibernate.Dynamic
             return _criteria.List<T>();
         }
 
-        private void AddFilters(object[] args)
+        private void AddFilters(ICriteria criteria)
         {
             for (int i = 0; i < _query.FilterProperties.Count; i++)
             {
-                _criteria.Add(Restrictions.Eq(_query.FilterProperties[i], args[i]));
+                criteria.Add(Restrictions.Eq(_query.FilterProperties[i], _args[i]));
+            }
+        }
+
+        private void AddIdRestriction(ICriteria criteria)
+        {
+            if (IsQueryById)
+            {
+                criteria.Add(Restrictions.Eq("Id", _args[0]));
             }
         }
     }
