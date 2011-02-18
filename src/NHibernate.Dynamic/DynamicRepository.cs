@@ -12,6 +12,7 @@ namespace NHibernate.Dynamic
         private readonly ISession _session;
         private ICriteria _criteria;
         private Query _query;
+        private object[] _args;
 
         public DynamicRepository(ISession session)
         {
@@ -32,34 +33,49 @@ namespace NHibernate.Dynamic
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
+            _args = args;
             _query = new Query(binder.Name);
             _criteria = _session.CreateCriteria<T>();
 
             AddFilters(args);
+            AddIdRestriction(args);
+            FetchRelatives();
 
-            var isQueryById = args.Length == 1 && !_query.FilterProperties.Any();
+            result = GetResult();
 
-            if (isQueryById)
+            return true;
+        }
+
+        private void AddIdRestriction(object[] args)
+        {
+            if (IsQueryById)
             {
                 _criteria.Add(Restrictions.Eq("Id", args[0]));
             }
+        }
 
+        private bool IsQueryById
+        {
+            get { return _args.Length == 1 && !_query.FilterProperties.Any(); }
+        }
+
+        private void FetchRelatives()
+        {
             if (_query.FetchProperties.Any())
             {
                 _criteria.SetFetchMode(_query.FetchProperties.First(), FetchMode.Join);
                 _criteria.SetResultTransformer(Transformers.DistinctRootEntity);
             }
+        }
 
-            if (_query.IsUnique || isQueryById)
+        private object GetResult()
+        {
+            if (_query.IsUnique || IsQueryById)
             {
-                result = _criteria.UniqueResult<T>();
-            }
-            else
-            {
-                result = _criteria.List<T>();
+                return _criteria.UniqueResult<T>();
             }
 
-            return true;
+            return _criteria.List<T>();
         }
 
         private void AddFilters(object[] args)
