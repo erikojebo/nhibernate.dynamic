@@ -21,3 +21,9 @@ var parent = _repository.GetByNameAndAddressWithChildrenAndGrandParent("Name", "
 The code is very crude and quite simplistic. There are a number of performance
 optimizations to make, so the number of queries is sub-optimal, but you'll get
 the data you asked for.
+
+
+RUNNING THE TESTS: 
+The integration tests assume that there is a SQL Server
+Express instance running at .\SQLEXPRESS with a database called
+nhibernate.dynamic, that can be connected to using a trusted connection.
