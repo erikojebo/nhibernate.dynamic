@@ -13,5 +13,6 @@ namespace NHibernate.Dynamic.Specs.Entities
         public virtual string Name { get; set; }
         public virtual IList<Book> FavoriteBooks { get; set; }
         public virtual IList<Movie> FavoriteMovies { get; set; }
+        public virtual Person BFF { get; set; }
     }
 }

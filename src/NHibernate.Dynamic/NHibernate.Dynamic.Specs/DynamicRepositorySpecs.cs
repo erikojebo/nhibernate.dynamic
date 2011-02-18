@@ -22,13 +22,25 @@ namespace NHibernate.Dynamic.Specs
         private Book _book3;
         private Person _person2;
         private Person _person1;
+        private Person _person3;
         private ISession _session;
         private dynamic _repository;
+
+        [TestFixtureSetUp]
+        public void TestFixtureSetUp()
+        {
+            CreateSessionFactory();
+        }
 
         [SetUp]
         public void SetUp()
         {
-            CreateSessionFactory();
+            _session = _factory.OpenSession();
+            _repository = new DynamicRepository<Person>(_session);
+
+            _session.CreateQuery("delete from Book").ExecuteUpdate();
+            _session.CreateQuery("delete from Movie").ExecuteUpdate();
+            _session.CreateQuery("delete from Person").ExecuteUpdate();
 
             _book1 = new Book { Title = "book 1" };
             _book2 = new Book { Title = "book 2" };
@@ -40,6 +52,7 @@ namespace NHibernate.Dynamic.Specs
 
             _person1 = new Person { Name = "person 1" };
             _person2 = new Person { Name = "person 2" };
+            _person3 = new Person { Name = "person 3" };
 
             _person1.FavoriteBooks.Add(_book1);
             _person1.FavoriteBooks.Add(_book2);
@@ -49,10 +62,10 @@ namespace NHibernate.Dynamic.Specs
             _person1.FavoriteMovies.Add(_movie2);
             _person2.FavoriteMovies.Add(_movie3);
 
-            SaveEntities();
+            _person1.BFF = _person2;
+            _person2.BFF = _person1;
 
-            _session = _factory.OpenSession();
-            _repository = new DynamicRepository<Person>(_session);
+            SaveEntities();
         }
 
         [Test]
@@ -67,13 +80,13 @@ namespace NHibernate.Dynamic.Specs
         }
 
         [Test]
-        public void Get_all_loads_all_entities_without_any_relatives()
+        public void Get_all_loads_all_entities_without_any_relatives_loaded_including_entities_without_relatives()
         {
             IList<Person> actualPersons = _repository.GetAll();
 
             var firstPerson = actualPersons.FirstOrDefault();
 
-            Assert.AreEqual(2, actualPersons.Count);
+            Assert.AreEqual(3, actualPersons.Count);
             Assert.AreEqual("person 1", firstPerson.Name);
             Assert.IsFalse(NHibernateUtil.IsInitialized(firstPerson.FavoriteBooks));
             Assert.IsFalse(NHibernateUtil.IsInitialized(firstPerson.FavoriteMovies));
@@ -89,11 +102,11 @@ namespace NHibernate.Dynamic.Specs
         }
 
         [Test]
-        public void GetWithCollectionName_without_parameters_returns_all_entities()
+        public void GetWithCollectionName_without_parameters_returns_all_entities_including_those_without_children()
         {
             IList<Person> actualPersons = _repository.GetWithFavoriteBooks();
 
-            Assert.AreEqual(2, actualPersons.Count);
+            Assert.AreEqual(3, actualPersons.Count);
         }
 
         [Test]
@@ -114,23 +127,41 @@ namespace NHibernate.Dynamic.Specs
 
             var firstPerson = actualPersons.FirstOrDefault();
 
-            Assert.AreEqual(2, actualPersons.Count);
+            Assert.AreEqual(3, actualPersons.Count);
             Assert.AreEqual(_person1.Id, firstPerson.Id);
             Assert.IsTrue(NHibernateUtil.IsInitialized(firstPerson.FavoriteBooks));
             Assert.IsFalse(NHibernateUtil.IsInitialized(firstPerson.FavoriteMovies));
         }
 
         [Test]
-        public void GetAllWithCollectionName_finds_parents_without_children() {}
+        public void GetWithChildren_when_unique_finds_parent_without_children()
+        {
+            Person actualPerson = _repository.GetWithFavoriteBooks(_person3.Id);
+
+            Assert.IsNotNull(actualPerson);
+            Assert.AreEqual(_person3.Id, actualPerson.Id);
+            Assert.IsTrue(NHibernateUtil.IsInitialized(actualPerson.FavoriteBooks));
+        }
 
         [Test]
-        public void GetWithChildren_finds_parent_without_children() {}
+        public void GetWithManyToOnePropertyName_loads_entity_with_given_relationship_loaded()
+        {
+            Person actualPerson = _repository.GetWithBFF(_person1.Id);
+
+            Assert.IsNotNull(actualPerson);
+            Assert.AreEqual(_person1.Id, actualPerson.Id);
+            Assert.IsTrue(NHibernateUtil.IsInitialized(actualPerson.BFF));
+        }
 
         [Test]
-        public void GetWithManyToOnePropertyName_loads_entity_with_given_relationship_loaded() {}
+        public void GetWithManyToOnePropertyName_loads_entity_without_specified_relative()
+        {
+            Person actualPerson = _repository.GetWithBFF(_person3.Id);
 
-        [Test]
-        public void GetWithManyToOnePropertyName_loads_entity_without_specified_relative() {}
+            Assert.IsNotNull(actualPerson);
+            Assert.AreEqual(_person3.Id, actualPerson.Id);
+            Assert.IsTrue(NHibernateUtil.IsInitialized(actualPerson.BFF));
+        }
 
         [Test]
         public void GetAllWithCollectionName1AndCollectionName2_loads_both_collections() {}
@@ -156,6 +187,7 @@ namespace NHibernate.Dynamic.Specs
             {
                 session.Save(_person1);
                 session.Save(_person2);
+                session.Save(_person3);
 
                 transaction.Commit();
             }
