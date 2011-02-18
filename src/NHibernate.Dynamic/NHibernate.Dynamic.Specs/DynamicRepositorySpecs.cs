@@ -80,6 +80,23 @@ namespace NHibernate.Dynamic.Specs
         }
 
         [Test]
+        public void GetWithCollectionName_given_one_argument_queries_by_id()
+        {
+            Person actualPerson = _repository.GetWithFavoriteBooks(_person1.Id);
+
+            Assert.IsNotNull(actualPerson);
+            Assert.AreEqual(_person1.Id, actualPerson.Id);
+        }
+
+        [Test]
+        public void GetWithCollectionName_without_parameters_returns_all_entities()
+        {
+            IList<Person> actualPersons = _repository.GetWithFavoriteBooks();
+
+            Assert.AreEqual(2, actualPersons.Count);
+        }
+
+        [Test]
         public void GetWithCollectionName_loads_corresponding_child_collection()
         {
             Person actualPerson = _repository.GetWithFavoriteBooks(_person1.Id);
@@ -91,7 +108,17 @@ namespace NHibernate.Dynamic.Specs
         }
 
         [Test]
-        public void GetAllWithCollectionName_loads_all_with_corresponding_child_collection_without_duplicates() {}
+        public void GetWithCollectionName_loads_all_with_corresponding_child_collection_without_duplicates()
+        {
+            IList<Person> actualPersons = _repository.GetWithFavoriteBooks();
+
+            var firstPerson = actualPersons.FirstOrDefault();
+
+            Assert.AreEqual(2, actualPersons.Count);
+            Assert.AreEqual(_person1.Id, firstPerson.Id);
+            Assert.IsTrue(NHibernateUtil.IsInitialized(firstPerson.FavoriteBooks));
+            Assert.IsFalse(NHibernateUtil.IsInitialized(firstPerson.FavoriteMovies));
+        }
 
         [Test]
         public void GetAllWithCollectionName_finds_parents_without_children() {}
@@ -114,7 +141,7 @@ namespace NHibernate.Dynamic.Specs
         [Test]
         public void GetByPropertyName_filters_on_given_property()
         {
-            Person actualPerson = _repository.GetByName("person 1");
+            Person actualPerson = _repository.GetOneByName("person 1");
 
             Assert.IsNotNull(actualPerson);
             Assert.AreEqual("person 1", actualPerson.Name);

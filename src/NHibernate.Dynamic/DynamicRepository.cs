@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Dynamic;
+using System.Linq;
 using NHibernate.Criterion;
 using NHibernate.Transform;
 
@@ -9,7 +10,8 @@ namespace NHibernate.Dynamic
         where T : class
     {
         private readonly ISession _session;
-        private string _calledMethodName;
+        private ICriteria _criteria;
+        private Query _query;
 
         public DynamicRepository(ISession session)
         {
@@ -30,44 +32,42 @@ namespace NHibernate.Dynamic
 
         public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
         {
-            result = null;
+            _query = new Query(binder.Name);
+            _criteria = _session.CreateCriteria<T>();
 
-            _calledMethodName = binder.Name;
+            AddFilters(args);
 
-            if (_calledMethodName.StartsWith("GetBy"))
+            var isQueryById = args.Length == 1 && !_query.FilterProperties.Any();
+
+            if (isQueryById)
             {
-                result = FindByProperty(args);
+                _criteria.Add(Restrictions.Eq("Id", args[0]));
             }
-            else if (_calledMethodName.StartsWith("GetWith"))
+
+            if (_query.FetchProperties.Any())
             {
-                result = GetWithChildren(args);
+                _criteria.SetFetchMode(_query.FetchProperties.First(), FetchMode.Join);
+                _criteria.SetResultTransformer(Transformers.DistinctRootEntity);
+            }
+
+            if (_query.IsUnique || isQueryById)
+            {
+                result = _criteria.UniqueResult<T>();
             }
             else
             {
-                return false;
+                result = _criteria.List<T>();
             }
 
             return true;
         }
 
-        private object GetWithChildren(object[] args)
+        private void AddFilters(object[] args)
         {
-            var propertyName = _calledMethodName.Substring("GetWith".Length);
-
-            return _session.CreateCriteria<T>()
-                .Add(Restrictions.Eq("Id", args[0]))
-                .SetFetchMode(propertyName, FetchMode.Join)
-                .SetResultTransformer(Transformers.DistinctRootEntity)
-                .UniqueResult<T>();
-        }
-
-        private object FindByProperty(object[] args)
-        {
-            var propertyName = _calledMethodName.Substring("GetBy".Length);
-
-            return _session.CreateCriteria<T>()
-                .Add(Restrictions.Eq(propertyName, args[0]))
-                .UniqueResult<T>();
+            for (int i = 0; i < _query.FilterProperties.Count; i++)
+            {
+                _criteria.Add(Restrictions.Eq(_query.FilterProperties[i], args[i]));
+            }
         }
     }
 }

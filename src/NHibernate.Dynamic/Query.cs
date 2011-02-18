@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 
 namespace NHibernate.Dynamic
 {
@@ -8,39 +7,66 @@ namespace NHibernate.Dynamic
     {
         private readonly List<string> _filterProperties = new List<string>();
         private readonly List<string> _fetchProperties = new List<string>();
+        private string _remainingQuery;
 
         public Query(string query)
         {
-            var match = Regex.Match(query, "Get(By(?<filter>.+)(Where(?<fetch>.+))");
-
-            ParseFilters(match.Groups["filter"].Value);
-
-            if (query.StartsWith("GetBy"))
+            if (!query.StartsWith("Get"))
             {
-                var filterString = query.Substring("GetBy".Length);
-
-                var filters = filterString.Split(new[] { "And" }, StringSplitOptions.RemoveEmptyEntries);
-
-                _filterProperties.AddRange(filters);
+                return;
             }
 
-            if (query.StartsWith("GetWith"))
+            _remainingQuery = query.Substring(3);
+
+            if (_remainingQuery.StartsWith("One"))
             {
-                var fetchString = query.Substring("GetWith".Length);
+                IsUnique = true;
+                _remainingQuery = _remainingQuery.Substring(3);
+            }
 
-                var fetchProperties = fetchString.Split(new[] { "And" }, StringSplitOptions.RemoveEmptyEntries);
+            ParseFilter();
+            ParseFetchPaths();
+        }
 
-                _fetchProperties.AddRange(fetchProperties);
+        private void ParseFilter()
+        {
+            if (!_remainingQuery.StartsWith("By"))
+            {
+                return;
+            }
+
+            _remainingQuery = _remainingQuery.Substring(2);
+
+            if (_remainingQuery.Contains("With"))
+            {
+                var whereIndex = _remainingQuery.IndexOf("With");
+
+                var filterString = _remainingQuery.Substring(0, whereIndex);
+                _filterProperties.AddRange(Split(filterString, "And"));
+
+                _remainingQuery = _remainingQuery.Substring(whereIndex);
+            }
+            else
+            {
+                _filterProperties.AddRange(Split(_remainingQuery, "And"));
             }
         }
 
-        private void ParseFilters(string filter)
+        private void ParseFetchPaths()
         {
+            if (!_remainingQuery.StartsWith("With"))
+            {
+                return;
+            }
+
+            _remainingQuery = _remainingQuery.Substring(4);
+
+            _fetchProperties.AddRange(Split(_remainingQuery, "And"));
         }
 
-        private void ParserFetchPaths(string fetchPats)
+        private string[] Split(string s, params string[] words)
         {
-            
+            return s.Split(words, StringSplitOptions.None);
         }
 
         public IList<string> FilterProperties
@@ -52,5 +78,7 @@ namespace NHibernate.Dynamic
         {
             get { return _fetchProperties; }
         }
+
+        public bool IsUnique { get; private set; }
     }
 }
